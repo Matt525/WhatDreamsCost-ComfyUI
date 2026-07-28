@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Install exact Three.js runtime
+      - name: Install complete exact Three.js runtime
         run: |
           mkdir runtime-build
           cd runtime-build
@@ -47,7 +47,8 @@ jobs:
           npm install --silent three@0.185.0
           mkdir -p ../three-runtime
           cp node_modules/three/build/three.module.js ../three-runtime/three.module.js
-          sha256sum ../three-runtime/three.module.js > ../three-runtime/SHA256SUMS.txt
+          cp node_modules/three/build/three.core.js ../three-runtime/three.core.js
+          sha256sum ../three-runtime/three.module.js ../three-runtime/three.core.js > ../three-runtime/SHA256SUMS.txt
       - name: Upload Three.js runtime
         uses: actions/upload-artifact@v4
         with:
