@@ -34,3 +34,25 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
+
+  package-three-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install exact Three.js runtime
+        run: |
+          mkdir runtime-build
+          cd runtime-build
+          npm init -y >/dev/null
+          npm install --silent three@0.185.0
+          mkdir -p ../three-runtime
+          cp node_modules/three/build/three.module.js ../three-runtime/three.module.js
+          sha256sum ../three-runtime/three.module.js > ../three-runtime/SHA256SUMS.txt
+      - name: Upload Three.js runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: midnight-district-three-runtime
+          path: three-runtime
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
