@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import struct
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path("transfer")
@@ -17,6 +16,47 @@ def fetch(url: str) -> bytes:
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
     with urlopen(request, timeout=180) as response:
         return response.read()
+
+
+def flatten_urls(value, path=()):
+    results = []
+    if isinstance(value, str) and value.startswith("http"):
+        results.append(("/".join(path).lower(), value))
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            results.extend(flatten_urls(item, path + (str(key),)))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            results.extend(flatten_urls(item, path + (str(index),)))
+    return results
+
+
+def source_index(asset_id: str) -> list[tuple[str, str]]:
+    api_url = f"https://api.polyhaven.com/files/{asset_id}"
+    metadata = json.loads(fetch(api_url))
+    return flatten_urls(metadata)
+
+
+def exact_dependency_url(asset_id: str, relative_uri: str, gltf_url: str, indexed_urls) -> str:
+    basename = Path(relative_uri).name.lower()
+    candidates = []
+    for key_path, url in indexed_urls:
+        remote_name = Path(unquote(urlparse(url).path)).name.lower()
+        if remote_name != basename:
+            continue
+        value = f"{key_path} {url}".lower()
+        score = 0
+        if "1k" in value:
+            score += 100
+        if "/models/gltf/1k/" in value:
+            score += 50
+        if relative_uri.lower().replace("\\", "/") in value:
+            score += 25
+        candidates.append((score, url))
+    if candidates:
+        candidates.sort(reverse=True)
+        return candidates[0][1]
+    return urljoin(gltf_url, relative_uri)
 
 
 def sha256(path: Path) -> str:
@@ -73,6 +113,7 @@ def main() -> None:
         references = []
         references.extend(buffer.get("uri") for buffer in model.get("buffers", []) if buffer.get("uri"))
         references.extend(image.get("uri") for image in model.get("images", []) if image.get("uri"))
+        indexed_urls = source_index(item["asset_id"])
 
         for relative_uri in sorted(set(references)):
             if relative_uri.startswith("data:"):
@@ -81,7 +122,8 @@ def main() -> None:
             inventory_name = str(destination.relative_to(ROOT))
             if inventory_name in existing:
                 continue
-            source_url = urljoin(item["source_url"], relative_uri)
+            source_url = exact_dependency_url(item["asset_id"], relative_uri, item["source_url"], indexed_urls)
+            print(f"Downloading {item['asset_id']} dependency: {relative_uri} <- {source_url}")
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(fetch(source_url))
             additions.append(
@@ -97,7 +139,7 @@ def main() -> None:
                     "bytes": destination.stat().st_size,
                     "size_mib": round(destination.stat().st_size / 1048576, 3),
                     "sha256": sha256(destination),
-                    "notes": "Dependency referenced directly by the approved glTF model.",
+                    "notes": "Dependency referenced directly by the approved glTF model and resolved through the official Poly Haven API.",
                 }
             )
             existing.add(inventory_name)
