@@ -28,26 +28,31 @@ jobs:
           set -o pipefail
           python tools/fix_phase1b_model_dependencies.py 2>&1 | tee transfer/dependency-log.txt
       - name: Build isolated approval renderer
+        id: approval_build
         if: steps.dependencies.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          rm -rf .phase1b-build
-          mkdir -p .phase1b-build transfer/approval
-          cp tools/phase1b_approval_scene.js .phase1b-build/
-          cd .phase1b-build
-          npm init -y >/dev/null
-          npm install --silent three@0.185.1 esbuild@0.25.0
-          npx esbuild phase1b_approval_scene.js --bundle --format=iife --target=es2022 --outfile=../transfer/approval/phase1b-approval.js --minify
-          cd ..
-          cat > transfer/approval/runtime.json <<'JSON'
+          set -o pipefail
           {
-            "three": "0.185.1",
+            set -euo pipefail
+            rm -rf .phase1b-build
+            mkdir -p .phase1b-build transfer/approval
+            cp tools/phase1b_approval_scene.js .phase1b-build/
+            cd .phase1b-build
+            npm init -y >/dev/null
+            npm install --silent three@0.185.0 esbuild@0.25.0
+            npx esbuild phase1b_approval_scene.js --bundle --format=iife --target=es2022 --outfile=../transfer/approval/phase1b-approval.js --minify
+            cd ..
+            cat > transfer/approval/runtime.json <<'JSON'
+          {
+            "three": "0.185.0",
             "esbuild": "0.25.0",
             "views": ["covered-car", "apartments", "factory", "materials"],
             "fallback": false
           }
           JSON
+          } 2>&1 | tee transfer/approval-build-log.txt
       - name: Print inventory summary
         if: always()
         run: |
@@ -68,4 +73,7 @@ jobs:
           retention-days: 1
       - name: Enforce dependency success
         if: steps.dependencies.outcome == 'failure'
+        run: exit 1
+      - name: Enforce approval renderer build success
+        if: steps.approval_build.outcome == 'failure'
         run: exit 1
