@@ -6,6 +6,7 @@ on:
       - phase1b-trigger.txt
       - tools/phase1b_asset_transfer.py
       - tools/fix_phase1b_model_dependencies.py
+      - tools/phase1b_approval_scene.js
       - .github/workflows/phase1b-asset-transfer.yml
 
 permissions:
@@ -26,6 +27,27 @@ jobs:
         run: |
           set -o pipefail
           python tools/fix_phase1b_model_dependencies.py 2>&1 | tee transfer/dependency-log.txt
+      - name: Build isolated approval renderer
+        if: steps.dependencies.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .phase1b-build
+          mkdir -p .phase1b-build transfer/approval
+          cp tools/phase1b_approval_scene.js .phase1b-build/
+          cd .phase1b-build
+          npm init -y >/dev/null
+          npm install --silent three@0.185.1 esbuild@0.25.0
+          npx esbuild phase1b_approval_scene.js --bundle --format=iife --target=es2022 --outfile=../transfer/approval/phase1b-approval.js --minify
+          cd ..
+          cat > transfer/approval/runtime.json <<'JSON'
+          {
+            "three": "0.185.1",
+            "esbuild": "0.25.0",
+            "views": ["covered-car", "apartments", "factory", "materials"],
+            "fallback": false
+          }
+          JSON
       - name: Print inventory summary
         if: always()
         run: |
