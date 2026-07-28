@@ -10,16 +10,9 @@ from urllib.request import Request, urlopen
 ROOT = Path("ambientcg-major-v2")
 ASSETS = [
     {
-        "asset_id": "Asphalt006",
-        "role": "road_reference",
-        "title": "Asphalt 006 — exact user reference",
-        "technique": "Approximation",
-        "source_page": "https://ambientcg.com/view?id=Asphalt006",
-    },
-    {
         "asset_id": "Asphalt030",
         "role": "road_photogrammetry",
-        "title": "Asphalt 030 — photogrammetry alternative",
+        "title": "Asphalt 030 — photogrammetry road surface",
         "technique": "Surface Photogrammetry",
         "source_page": "https://ambientcg.com/view?id=Asphalt030",
     },
@@ -66,17 +59,24 @@ def download(url: str, destination: Path) -> str:
 
 def classify(name: str) -> str | None:
     lower = name.lower()
-    if "_color" in lower or "_basecolor" in lower: return "diffuse"
-    if "_normalgl" in lower or "_normal_gl" in lower: return "normal"
-    if "_roughness" in lower: return "roughness"
-    if "_ambientocclusion" in lower or "_ao" in lower: return "ao"
-    if "_displacement" in lower or "_height" in lower: return "displacement"
-    if "_metalness" in lower or "_metallic" in lower: return "metalness"
+    if "_color" in lower or "_basecolor" in lower:
+        return "diffuse"
+    if "_normalgl" in lower or "_normal_gl" in lower:
+        return "normal"
+    if "_roughness" in lower:
+        return "roughness"
+    if "_ambientocclusion" in lower or "_ao" in lower:
+        return "ao"
+    if "_displacement" in lower or "_height" in lower:
+        return "displacement"
+    if "_metalness" in lower or "_metallic" in lower:
+        return "metalness"
     return None
 
 
 def main() -> None:
-    if ROOT.exists(): shutil.rmtree(ROOT)
+    if ROOT.exists():
+        shutil.rmtree(ROOT)
     (ROOT / "assets" / "textures").mkdir(parents=True)
     inventory = []
     manifest = {}
@@ -103,29 +103,32 @@ def main() -> None:
                 destination.write_bytes(archive.read(member))
                 relative = str(destination.relative_to(ROOT))
                 maps[map_type] = relative
-                inventory.append({
-                    "asset_id": asset["asset_id"],
-                    "role": asset["role"],
-                    "asset_type": "texture-map",
-                    "map_type": map_type,
-                    "filename": relative,
-                    "source_page": asset["source_page"],
-                    "request_url": request_url,
-                    "source_url": final_url,
-                    "resolution": "2048x2048",
-                    "technique": asset["technique"],
-                    "license": "CC0 1.0 Universal",
-                    "attribution_required": False,
-                    "bytes": destination.stat().st_size,
-                    "size_mib": round(destination.stat().st_size / 1048576, 3),
-                    "sha256": sha256(destination),
-                })
+                inventory.append(
+                    {
+                        "asset_id": asset["asset_id"],
+                        "role": asset["role"],
+                        "asset_type": "texture-map",
+                        "map_type": map_type,
+                        "filename": relative,
+                        "source_page": asset["source_page"],
+                        "request_url": request_url,
+                        "source_url": final_url,
+                        "resolution": "2048x2048",
+                        "technique": asset["technique"],
+                        "license": "CC0 1.0 Universal",
+                        "attribution_required": False,
+                        "bytes": destination.stat().st_size,
+                        "size_mib": round(destination.stat().st_size / 1048576, 3),
+                        "sha256": sha256(destination),
+                    }
+                )
         zip_bytes = temporary_zip.stat().st_size
         zip_hash = sha256(temporary_zip)
         temporary_zip.unlink()
         required = {"diffuse", "normal", "roughness", "displacement"}
         missing = sorted(required - set(maps))
-        if missing: raise RuntimeError(f"{asset['asset_id']} missing {missing}")
+        if missing:
+            raise RuntimeError(f"{asset['asset_id']} missing {missing}")
         manifest[asset["role"]] = {
             **asset,
             "resolution": "2K-JPG",
@@ -142,8 +145,19 @@ def main() -> None:
     inventory.sort(key=lambda item: (item["role"], item["map_type"]))
     (ROOT / "major-surface-manifest.json").write_text(json.dumps(manifest, indent=2))
     (ROOT / "major-surface-inventory.json").write_text(json.dumps(inventory, indent=2))
-    (ROOT / "LICENSE.md").write_text("All materials in this packet are from ambientCG and licensed CC0 1.0 Universal. Attribution is not required.\n")
-    print(json.dumps({"materials": list(manifest), "files": len(inventory), "bytes": sum(x["bytes"] for x in inventory)}, indent=2))
+    (ROOT / "LICENSE.md").write_text(
+        "All materials in this packet are from ambientCG and licensed CC0 1.0 Universal. Attribution is not required.\n"
+    )
+    print(
+        json.dumps(
+            {
+                "materials": list(manifest),
+                "files": len(inventory),
+                "bytes": sum(item["bytes"] for item in inventory),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
