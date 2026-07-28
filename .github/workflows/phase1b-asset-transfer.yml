@@ -36,10 +36,10 @@ jobs:
           set -o pipefail
           {
             set -euo pipefail
-            rm -rf .phase1b-build
-            mkdir -p .phase1b-build transfer/approval
-            cp tools/phase1b_approval_scene.js .phase1b-build/
-            cd .phase1b-build
+            rm -rf phase1b-build
+            mkdir -p phase1b-build transfer/approval
+            cp tools/phase1b_approval_scene.js phase1b-build/
+            cd phase1b-build
             npm init -y >/dev/null
             npm install --silent three@0.185.0 esbuild@0.25.0
             npx esbuild phase1b_approval_scene.js --bundle --format=iife --target=es2022 --outfile=../transfer/approval/phase1b-approval.js --minify
