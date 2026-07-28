@@ -5,6 +5,7 @@ on:
     paths:
       - ambientcg-trigger.txt
       - tools/ambientcg_surface_transfer.py
+      - tools/ambientcg_major_v2.py
       - .github/workflows/ambientcg-surfaces.yml
 
 permissions:
@@ -31,6 +32,30 @@ jobs:
         with:
           name: midnight-district-ambientcg-surfaces
           path: ambientcg-transfer
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  acquire-revised-major-surfaces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact reference and revised urban surfaces
+        run: python tools/ambientcg_major_v2.py
+      - name: Verify no missing PBR channels
+        run: |
+          python - <<'PY'
+          import json
+          manifest=json.load(open('ambientcg-major-v2/major-surface-manifest.json'))
+          for role,item in manifest.items():
+              print(role, item['asset_id'], sorted(item['maps']), item['source_zip_size_mib'])
+          PY
+      - name: Upload revised major surfaces
+        uses: actions/upload-artifact@v4
+        with:
+          name: midnight-district-ambientcg-major-v2
+          path: ambientcg-major-v2
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
