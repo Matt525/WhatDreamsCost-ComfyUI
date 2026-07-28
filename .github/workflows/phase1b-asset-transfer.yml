@@ -20,8 +20,11 @@ jobs:
       - name: Download approved real assets and generate manifest
         run: python tools/phase1b_asset_transfer.py
       - name: Download and verify every glTF dependency
-        run: python tools/fix_phase1b_model_dependencies.py
+        id: dependencies
+        continue-on-error: true
+        run: python tools/fix_phase1b_model_dependencies.py 2>&1 | tee transfer/dependency-log.txt
       - name: Print inventory summary
+        if: always()
         run: |
           python - <<'PY'
           import json
@@ -29,7 +32,8 @@ jobs:
           for item in items:
               print(item['asset_id'], item['asset_type'], item.get('filename'), item.get('size_mib'), item.get('resolution'))
           PY
-      - name: Upload Phase 1B bundle
+      - name: Upload Phase 1B bundle and audit log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: midnight-district-phase1b-assets
@@ -37,3 +41,6 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
+      - name: Enforce dependency success
+        if: steps.dependencies.outcome == 'failure'
+        run: exit 1
